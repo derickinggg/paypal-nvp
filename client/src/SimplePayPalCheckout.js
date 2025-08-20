@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getApiUrl } from './config';
 
 const SimplePayPalCheckout = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -6,11 +7,20 @@ const SimplePayPalCheckout = () => {
   const [messageType, setMessageType] = useState('');
 
   useEffect(() => {
-    const script = document.createElement("script");
-    script.src = `https://www.paypal.com/sdk/js?client-id=YOUR_CLIENT_ID&currency=USD&intent=capture`;
-    script.addEventListener("load", loadPayPal);
-    document.body.appendChild(script);
-
+    const loadSdk = async () => {
+      try {
+        const cfgRes = await fetch(getApiUrl('/paypal/config'));
+        const cfg = await cfgRes.json();
+        const script = document.createElement('script');
+        script.src = `https://www.paypal.com/sdk/js?client-id=${cfg.clientId}&currency=USD&intent=capture`;
+        script.addEventListener('load', loadPayPal);
+        document.body.appendChild(script);
+      } catch (e) {
+        setMessage(`Failed to initialize PayPal: ${e.message}`);
+        setMessageType('error');
+      }
+    };
+    loadSdk();
     return () => {
       const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]');
       if (existingScript) {
@@ -24,7 +34,7 @@ const SimplePayPalCheckout = () => {
       window.paypal.Buttons({
         createOrder: async () => {
           try {
-            const response = await fetch('/api/create-order', {
+            const response = await fetch(getApiUrl('/create-order'), {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
@@ -49,7 +59,7 @@ const SimplePayPalCheckout = () => {
           setMessage('');
           
           try {
-            const response = await fetch('/api/capture-order', {
+            const response = await fetch(getApiUrl('/capture-order'), {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'

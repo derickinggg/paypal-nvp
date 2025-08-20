@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-const paypal = require('./paypal');
+const axios = require('axios');
 const paypalNVP = require('./paypal-nvp');
 
 const app = express();
@@ -12,58 +12,24 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from the React app
 app.use(express.static('client/build'));
 
-// Existing PayPal v2 API endpoints
-app.post('/api/create-order', async (req, res) => {
-  try {
-    const { amount = "25.00", currency = "USD" } = req.body;
-    
-    // Validate amount
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      return res.status(400).json({ error: 'Valid amount is required' });
-    }
-
-    const order = await paypal.createOrder(amount, currency);
-    res.json(order);
-  } catch (error) {
-    console.error('Error creating order:', error);
-    res.status(500).json({ error: 'Failed to create order' });
-  }
-});
-
-app.post('/api/capture-order', async (req, res) => {
-  try {
-    const { orderID, billingInfo } = req.body;
-    
-    // Log billing information for debugging
-    if (billingInfo) {
-      console.log('Billing Information:', {
-        name: `${billingInfo.firstName} ${billingInfo.lastName}`,
-        email: billingInfo.email,
-        address: billingInfo.address,
-        city: billingInfo.city,
-        state: billingInfo.state,
-        zipCode: billingInfo.zipCode
-      });
-    }
-    
-    const capture = await paypal.captureOrder(orderID);
-    res.json(capture);
-  } catch (error) {
-    console.error('Error capturing order:', error);
-    res.status(500).json({ error: 'Failed to capture order' });
-  }
-});
-
-// New NVP Express Checkout endpoints
+// NVP Express Checkout endpoints
 app.post('/api/nvp/create', async (req, res) => {
   try {
-    const { amount, currency = 'USD' } = req.body;
+    const { amount, currency = 'USD', paypalUser, paypalPwd, paypalSignature } = req.body;
     
     if (!amount || isNaN(parseFloat(amount))) {
       return res.status(400).json({ error: 'Valid amount is required' });
     }
 
-    const result = await paypalNVP.createExpressCheckout(amount, currency);
+    // Validate credentials
+    if (!paypalUser || !paypalPwd || !paypalSignature) {
+      return res.status(400).json({ error: 'PayPal NVP credentials are required' });
+    }
+
+    // Create a temporary NVP instance with user-provided credentials
+    const tempNVP = paypalNVP.createWithCredentials(paypalUser, paypalPwd, paypalSignature);
+    
+    const result = await tempNVP.createExpressCheckout(amount, currency);
     res.json(result);
   } catch (error) {
     console.error('Error creating NVP Express Checkout:', error);
@@ -114,6 +80,121 @@ app.get('/api/nvp/debug', (req, res) => {
   });
 });
 
+// ==============================
+// PayPal Advanced Checkout (REST)
+// ==============================
+
+const isLive = (process.env.PAYPAL_ENV || '').toLowerCase() === 'live';
+const paypalApiBase = isLive ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+
+async function getAccessToken() {
+  const clientId = process.env.PAYPAL_CLIENT_ID;
+  const secret = process.env.PAYPAL_SECRET;
+  if (!clientId || !secret) {
+    throw new Error('Missing PAYPAL_CLIENT_ID or PAYPAL_SECRET');
+  }
+
+  const tokenUrl = `${paypalApiBase}/v1/oauth2/token`;
+  const auth = Buffer.from(`${clientId}:${secret}`).toString('base64');
+
+  const response = await axios.post(
+    tokenUrl,
+    'grant_type=client_credentials',
+    {
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+  return response.data.access_token;
+}
+
+// Public config for client (exposes only safe values)
+app.get('/api/paypal/config', (req, res) => {
+  res.json({
+    clientId: process.env.PAYPAL_CLIENT_ID || 'sb',
+    environment: isLive ? 'live' : 'sandbox'
+  });
+});
+
+// Generate client token (required for Hosted Fields)
+app.post('/api/generate-client-token', async (req, res) => {
+  try {
+    const accessToken = await getAccessToken();
+    const url = `${paypalApiBase}/v1/identity/generate-token`;
+    const response = await axios.post(url, {}, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    res.json({ client_token: response.data.client_token });
+  } catch (error) {
+    console.error('Error generating client token:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to generate client token', details: error.response?.data || error.message });
+  }
+});
+
+// Create order
+app.post('/api/create-order', async (req, res) => {
+  try {
+    const { amount = '25.00', currency = 'USD' } = req.body || {};
+    const accessToken = await getAccessToken();
+    const url = `${paypalApiBase}/v2/checkout/orders`;
+    const response = await axios.post(
+      url,
+      {
+        intent: 'CAPTURE',
+        purchase_units: [
+          {
+            amount: {
+              currency_code: currency,
+              value: amount
+            }
+          }
+        ]
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    res.json({ id: response.data.id });
+  } catch (error) {
+    console.error('Error creating order:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to create order', details: error.response?.data || error.message });
+  }
+});
+
+// Capture order
+app.post('/api/capture-order', async (req, res) => {
+  try {
+    const { orderID } = req.body || {};
+    if (!orderID) {
+      return res.status(400).json({ error: 'orderID is required' });
+    }
+    const accessToken = await getAccessToken();
+    const url = `${paypalApiBase}/v2/checkout/orders/${orderID}/capture`;
+    const response = await axios.post(
+      url,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error capturing order:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to capture order', details: error.response?.data || error.message });
+  }
+});
+
 // Handle React routing, return all requests to React app
 app.get('*', (req, res) => {
   res.sendFile('client/build/index.html', { root: __dirname + '/..' });
@@ -126,4 +207,6 @@ app.listen(PORT, () => {
   console.log(`🔧 API endpoints available at: http://localhost:${PORT}/api`);
   console.log(`💳 NVP Express Checkout available at: http://localhost:${PORT}/api/nvp/create`);
   console.log(`🐛 NVP Debug endpoint: http://localhost:${PORT}/api/nvp/debug`);
+  console.log(`🧪 PayPal REST create order: http://localhost:${PORT}/api/create-order`);
+  console.log(`🧪 PayPal REST capture order: http://localhost:${PORT}/api/capture-order`);
 }); 

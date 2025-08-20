@@ -46,19 +46,20 @@ function parseNVP(s) {
   return out;
 }
 
-async function paypalRequest(method, extra) {
+async function paypalRequest(method, extra, credentials = null) {
+  const creds = credentials || cfg;
   const base = {
     METHOD: method,
-    VERSION: cfg.version,
-    USER: cfg.user,
-    PWD: cfg.pwd,
-    SIGNATURE: cfg.sig,
+    VERSION: creds.version || cfg.version,
+    USER: creds.user,
+    PWD: creds.pwd,
+    SIGNATURE: creds.sig,
   };
   
   const body = encodeNVP({ ...base, ...extra });
   
   console.log(`📤 PayPal NVP Request: ${method}`);
-  console.log(`🔑 Using credentials: USER=${cfg.user}, VERSION=${cfg.version}`);
+  console.log(`🔑 Using credentials: USER=${creds.user}, VERSION=${creds.version || cfg.version}`);
   
   try {
     const res = await axios.post(NVP_ENDPOINT, body, {
@@ -98,79 +99,153 @@ exports.createExpressCheckout = async (amount, currency = 'USD') => {
   const returnUrl = `${cfg.baseUrl}/api/nvp/return`;
   const cancelUrl = `${cfg.baseUrl}/api/nvp/cancel`;
 
-  // Minimal required fields for EC
-  const params = {
-    RETURNURL: returnUrl,
-    CANCELURL: cancelUrl,
-    PAYMENTREQUEST_0_AMT: amount,
-    PAYMENTREQUEST_0_CURRENCYCODE: currency,
-    PAYMENTREQUEST_0_PAYMENTACTION: 'Sale',
-    // Optional cosmetics:
-    BRANDNAME: 'My Store',
-    LANDINGPAGE: 'Login',
-    SOLUTIONTYPE: 'Sole',
-    // Optional: make final button "Pay Now"
-    USERACTION: 'commit',
-    // Recommend: unique invoice for idempotency/reporting
-    PAYMENTREQUEST_0_INVNUM: `INV-${Date.now()}`,
+  try {
+    const result = await paypalRequest('SetExpressCheckout', {
+      RETURNURL: returnUrl,
+      CANCELURL: cancelUrl,
+      PAYMENTREQUEST_0_AMT: amount,
+      PAYMENTREQUEST_0_CURRENCYCODE: currency,
+      PAYMENTREQUEST_0_PAYMENTACTION: 'Sale',
+      L_PAYMENTREQUEST_0_NAME0: 'Express Checkout Payment',
+      L_PAYMENTREQUEST_0_DESC0: `Payment for ${amount} ${currency}`,
+      L_PAYMENTREQUEST_0_AMT0: amount,
+      L_PAYMENTREQUEST_0_QTY0: '1',
+    });
+
+    if (result.TOKEN) {
+      // Store order details for later retrieval
+      orderByToken.set(result.TOKEN, { amount, currency });
+      
+      // Redirect to PayPal
+      const redirectUrl = `https://${PP_HOST}/cgi-bin/webscr?cmd=_express-checkout&token=${result.TOKEN}`;
+      
+      return {
+        success: true,
+        token: result.TOKEN,
+        redirectUrl,
+        correlationId: result.CORRELATIONID
+      };
+    } else {
+      throw new Error('No token received from PayPal');
+    }
+  } catch (error) {
+    console.error('❌ Failed to create Express Checkout:', error);
+    throw error;
+  }
+};
+
+// Create Express Checkout with custom credentials
+exports.createWithCredentials = (user, pwd, sig) => {
+  const customCredentials = {
+    user,
+    pwd,
+    sig,
+    version: cfg.version,
+    baseUrl: cfg.baseUrl
   };
 
-  const rsp = await paypalRequest('SetExpressCheckout', params);
-  const token = rsp.TOKEN;
-  
-  console.log(`✅ Express Checkout created with token: ${token}`);
-  
-  // Store order details for later retrieval
-  orderByToken.set(token, { amount, currency, createdAt: Date.now() });
-
-  const redirectUrl = `https://${PP_HOST}/cgi-bin/webscr?cmd=_express-checkout&token=${encodeURIComponent(token)}&useraction=commit`;
-  
   return {
-    token,
-    redirectUrl,
-    success: true
+    async createExpressCheckout(amount, currency = 'USD') {
+      console.log(`💳 Creating Express Checkout with custom credentials: ${amount} ${currency}`);
+      
+      const returnUrl = `${customCredentials.baseUrl}/api/nvp/return`;
+      const cancelUrl = `${customCredentials.baseUrl}/api/nvp/cancel`;
+
+      try {
+        const result = await paypalRequest('SetExpressCheckout', {
+          RETURNURL: returnUrl,
+          CANCELURL: cancelUrl,
+          PAYMENTREQUEST_0_AMT: amount,
+          PAYMENTREQUEST_0_CURRENCYCODE: currency,
+          PAYMENTREQUEST_0_PAYMENTACTION: 'Sale',
+          L_PAYMENTREQUEST_0_NAME0: 'Express Checkout Payment',
+          L_PAYMENTREQUEST_0_DESC0: `Payment for ${amount} ${currency}`,
+          L_PAYMENTREQUEST_0_AMT0: amount,
+          L_PAYMENTREQUEST_0_QTY0: '1',
+        }, customCredentials);
+
+        if (result.TOKEN) {
+          // Store order details for later retrieval
+          orderByToken.set(result.TOKEN, { amount, currency });
+          
+          // Redirect to PayPal (always use live for custom credentials)
+          const redirectUrl = `https://www.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=${result.TOKEN}`;
+          
+          return {
+            success: true,
+            token: result.TOKEN,
+            redirectUrl,
+            correlationId: result.CORRELATIONID
+          };
+        } else {
+          throw new Error('No token received from PayPal');
+        }
+      } catch (error) {
+        console.error('❌ Failed to create Express Checkout with custom credentials:', error);
+        throw error;
+      }
+    }
   };
 };
 
 // Get Express Checkout details
 exports.getExpressCheckoutDetails = async (token) => {
   console.log(`📋 Getting Express Checkout details for token: ${token}`);
-  return await paypalRequest('GetExpressCheckoutDetails', { TOKEN: token });
+  
+  try {
+    const result = await paypalRequest('GetExpressCheckoutDetails', {
+      TOKEN: token,
+    });
+    
+    return {
+      token: result.TOKEN,
+      payerId: result.PAYERID,
+      email: result.EMAIL,
+      firstName: result.FIRSTNAME,
+      lastName: result.LASTNAME,
+      countryCode: result.COUNTRYCODE,
+      amount: result.PAYMENTREQUEST_0_AMT,
+      currency: result.PAYMENTREQUEST_0_CURRENCYCODE,
+    };
+  } catch (error) {
+    console.error('❌ Failed to get Express Checkout details:', error);
+    throw error;
+  }
 };
 
 // Complete Express Checkout payment
-exports.doExpressCheckoutPayment = async (token, payerID) => {
-  console.log(`💸 Completing Express Checkout payment for token: ${token}, PayerID: ${payerID}`);
+exports.doExpressCheckoutPayment = async (token, payerId) => {
+  console.log(`💳 Completing Express Checkout payment for token: ${token}, payer: ${payerId}`);
   
   const orderDetails = orderByToken.get(token);
   if (!orderDetails) {
-    throw new Error('Order context missing. Token may have expired.');
+    throw new Error('Order details not found for token');
   }
-
-  const { amount, currency } = orderDetails;
-
-  const payRsp = await paypalRequest('DoExpressCheckoutPayment', {
-    TOKEN: token,
-    PAYERID: payerID,
-    PAYMENTREQUEST_0_AMT: amount,
-    PAYMENTREQUEST_0_CURRENCYCODE: currency,
-    PAYMENTREQUEST_0_PAYMENTACTION: 'Sale',
-    PAYMENTREQUEST_0_INVNUM: `INV-${Date.now()}`,
-  });
-
-  console.log(`✅ Payment completed successfully! Transaction ID: ${payRsp.PAYMENTINFO_0_TRANSACTIONID}`);
-
-  // Clean up stored order data
-  orderByToken.delete(token);
-
-  return {
-    success: true,
-    transactionId: payRsp.PAYMENTINFO_0_TRANSACTIONID,
-    amount,
-    currency,
-    payerID,
-    response: payRsp
-  };
+  
+  try {
+    const result = await paypalRequest('DoExpressCheckoutPayment', {
+      TOKEN: token,
+      PAYERID: payerId,
+      PAYMENTREQUEST_0_PAYMENTACTION: 'Sale',
+      PAYMENTREQUEST_0_AMT: orderDetails.amount,
+      PAYMENTREQUEST_0_CURRENCYCODE: orderDetails.currency,
+    });
+    
+    // Clean up stored order details
+    orderByToken.delete(token);
+    
+    return {
+      success: true,
+      transactionId: result.PAYMENTINFO_0_TRANSACTIONID,
+      amount: orderDetails.amount,
+      currency: orderDetails.currency,
+      correlationId: result.CORRELATIONID,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('❌ Failed to complete Express Checkout payment:', error);
+    throw error;
+  }
 };
 
 // Get stored order details by token
@@ -200,14 +275,12 @@ exports.cleanupExpiredTokens = () => {
   return expiredTokens.length;
 };
 
-// Get current configuration (for debugging)
-exports.getConfig = () => {
-  return {
-    env: cfg.env,
-    version: cfg.version,
-    endpoint: NVP_ENDPOINT,
-    host: PP_HOST,
-    hasCredentials: !!(cfg.user && cfg.pwd && cfg.sig),
-    baseUrl: cfg.baseUrl
-  };
-};
+// Get configuration
+exports.getConfig = () => ({
+  env: cfg.env,
+  version: cfg.version,
+  endpoint: NVP_ENDPOINT,
+  host: PP_HOST,
+  hasCredentials: !!(cfg.user && cfg.pwd && cfg.sig),
+  baseUrl: cfg.baseUrl
+});

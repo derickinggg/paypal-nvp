@@ -92,3 +92,4 @@ logs
 
 # PayPal specific
 paypal.log 
+.vercel

@@ -1,64 +1,83 @@
 .nvp-checkout {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  min-height: 100vh;
-  padding: 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .nvp-checkout-container {
   background: white;
-  border-radius: 16px;
+  border-radius: 20px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  padding: 2.5rem;
-  max-width: 500px;
+  padding: 40px;
+  max-width: 1200px;
   width: 100%;
 }
 
-.nvp-checkout h2 {
-  color: #2d3748;
-  margin-bottom: 0.5rem;
+.nvp-checkout-container h2 {
   text-align: center;
-  font-size: 1.8rem;
+  color: #2c3e50;
+  margin-bottom: 10px;
+  font-size: 2.5rem;
   font-weight: 700;
 }
 
 .nvp-description {
-  color: #718096;
   text-align: center;
-  margin-bottom: 2rem;
-  font-size: 0.95rem;
-  line-height: 1.5;
+  color: #7f8c8d;
+  margin-bottom: 40px;
+  font-size: 1.1rem;
+}
+
+.nvp-main-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+/* Left Column - Checkout Form */
+.nvp-checkout-form {
+  background: #f8f9fa;
+  padding: 30px;
+  border-radius: 15px;
+  border: 1px solid #e9ecef;
+}
+
+.nvp-checkout-form h3 {
+  color: #2c3e50;
+  margin-bottom: 25px;
+  font-size: 1.5rem;
+  text-align: center;
 }
 
 .nvp-form {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
+  gap: 20px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .form-group label {
   font-weight: 600;
-  color: #4a5568;
-  font-size: 0.9rem;
+  color: #2c3e50;
+  font-size: 0.95rem;
 }
 
 .form-group input,
 .form-group select {
-  padding: 0.75rem;
-  border: 2px solid #e2e8f0;
+  padding: 12px 16px;
+  border: 2px solid #e9ecef;
   border-radius: 8px;
   font-size: 1rem;
-  transition: all 0.2s ease;
-  background: white;
+  transition: border-color 0.3s ease;
 }
 
 .form-group input:focus,
@@ -68,23 +87,17 @@
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-.form-group input:hover,
-.form-group select:hover {
-  border-color: #cbd5e0;
-}
-
 .paypal-button {
   background: linear-gradient(135deg, #0070ba 0%, #1546a0 100%);
   color: white;
   border: none;
-  padding: 1rem 1.5rem;
+  padding: 16px 32px;
   border-radius: 8px;
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  transition: all 0.3s ease;
+  margin-top: 10px;
 }
 
 .paypal-button:hover:not(:disabled) {
@@ -95,65 +108,359 @@
 .paypal-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  transform: none;
 }
 
 .error-message {
-  background: #fed7d7;
-  color: #c53030;
-  padding: 0.75rem;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  border: 1px solid #feb2b2;
-}
-
-.nvp-info {
-  background: #f7fafc;
+  background: #fee;
+  border: 1px solid #fcc;
+  color: #c33;
+  padding: 12px 16px;
   border-radius: 8px;
-  padding: 1.5rem;
-  border-left: 4px solid #667eea;
-}
-
-.nvp-info h3 {
-  color: #2d3748;
-  margin-bottom: 1rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.nvp-info ol {
-  color: #4a5568;
-  margin-bottom: 1rem;
-  padding-left: 1.5rem;
-  line-height: 1.6;
-}
-
-.nvp-info li {
-  margin-bottom: 0.5rem;
-}
-
-.api-info {
-  background: #e6fffa;
-  border: 1px solid #81e6d9;
-  border-radius: 6px;
-  padding: 0.75rem;
-  font-size: 0.85rem;
-  color: #234e52;
-  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
   text-align: center;
 }
 
-/* Responsive design */
-@media (max-width: 640px) {
-  .nvp-checkout {
-    padding: 1rem;
+.nvp-info {
+  margin-top: 30px;
+  padding-top: 25px;
+  border-top: 1px solid #e9ecef;
+}
+
+.nvp-info h4 {
+  color: #2c3e50;
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+}
+
+.nvp-info ol {
+  color: #5a6c7d;
+  line-height: 1.6;
+  padding-left: 20px;
+}
+
+.nvp-info li {
+  margin-bottom: 8px;
+}
+
+/* Right Column - NVP Credentials API */
+.nvp-credentials-api {
+  background: #f8f9fa;
+  padding: 30px;
+  border-radius: 15px;
+  border: 1px solid #e9ecef;
+}
+
+.nvp-credentials-api h3 {
+  color: #2c3e50;
+  margin-bottom: 25px;
+  font-size: 1.5rem;
+  text-align: center;
+}
+
+.credentials-info h4 {
+  color: #2c3e50;
+  margin: 20px 0 15px 0;
+  font-size: 1.1rem;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 8px;
+}
+
+/* Credential Input Fields */
+.credential-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.credential-input-group label {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 0.9rem;
+  font-family: 'Courier New', monospace;
+}
+
+.credential-input {
+  padding: 12px 16px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: 'Courier New', monospace;
+  transition: border-color 0.3s ease;
+  background: white;
+}
+
+.credential-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.credentials-note {
+  background: #e8f4fd;
+  border: 1px solid #bee5eb;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+.credentials-note p {
+  color: #0c5460;
+  font-size: 0.85rem;
+  margin: 5px 0;
+  line-height: 1.4;
+}
+
+.credentials-note a {
+  color: #0070ba;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.credentials-note a:hover {
+  text-decoration: underline;
+}
+
+.credential-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.credential-item label {
+  font-weight: 600;
+  color: #5a6c7d;
+  font-size: 0.9rem;
+}
+
+.credential-value {
+  background: #e8f5e8;
+  color: #2d5a2d;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.status-item label {
+  font-weight: 600;
+  color: #5a6c7d;
+  font-size: 0.9rem;
+}
+
+.status-value.online {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.api-test {
+  margin-top: 20px;
+}
+
+.api-test p {
+  color: #5a6c7d;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}
+
+.api-endpoint {
+  background: #2c3e50;
+  color: #ecf0f1;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  display: block;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.test-example {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.test-example strong {
+  color: #2c3e50;
+  font-size: 0.9rem;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.test-example pre {
+  background: #2c3e50;
+  color: #ecf0f1;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  margin: 0;
+}
+
+/* API Credentials Checker */
+.api-checker-section {
+  margin: 20px 0;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.api-checker-section h4 {
+  margin: 0 0 15px 0;
+  color: #495057;
+  font-size: 16px;
+}
+
+.check-credentials-button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+.check-credentials-button:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.check-credentials-button:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+}
+
+/* Credential Status Display */
+.credential-status {
+  padding: 15px;
+  border-radius: 6px;
+  border: 1px solid;
+  margin-top: 15px;
+}
+
+.credential-status.success {
+  background: #d4edda;
+  border-color: #c3e6cb;
+  color: #155724;
+}
+
+.credential-status.error {
+  background: #f8d7da;
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.status-indicator {
+  font-size: 18px;
+}
+
+.status-indicator.live {
+  color: #28a745;
+}
+
+.status-indicator.error {
+  color: #dc3545;
+}
+
+.status-indicator.timeout {
+  color: #ffc107;
+}
+
+.status-message {
+  margin: 8px 0;
+  font-weight: 500;
+}
+
+.status-error {
+  margin: 8px 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.status-details {
+  margin-top: 15px;
+}
+
+.status-details summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: #007bff;
+  margin-bottom: 10px;
+}
+
+.status-details pre {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  overflow-x: auto;
+  margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .nvp-main-content {
+    grid-template-columns: 1fr;
+    gap: 30px;
   }
   
   .nvp-checkout-container {
-    padding: 1.5rem;
+    padding: 25px;
   }
   
-  .nvp-checkout h2 {
-    font-size: 1.5rem;
+  .nvp-checkout-container h2 {
+    font-size: 2rem;
+  }
+  
+  .nvp-checkout-form,
+  .nvp-credentials-api {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nvp-checkout {
+    padding: 15px;
+  }
+  
+  .nvp-checkout-container {
+    padding: 20px;
+  }
+  
+  .credential-item,
+  .status-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .credential-input-group {
+    margin-bottom: 15px;
   }
 }
