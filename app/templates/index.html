@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PayPal NVP Activity Viewer</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 2rem; }
+      header { margin-bottom: 1.5rem; }
+      form { display: grid; grid-template-columns: repeat(4, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; align-items: end; }
+      label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+      input[type="date"], input[type="text"] { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 6px; }
+      button { padding: 0.6rem 1rem; background: #0366d6; color: white; border: none; border-radius: 6px; cursor: pointer; }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .note { color: #666; font-size: 0.9rem; }
+      .error { background: #fee; color: #900; padding: 0.75rem 1rem; border: 1px solid #f99; border-radius: 6px; margin-bottom: 1rem; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #e5e7eb; padding: 0.5rem 0.6rem; text-align: left; }
+      th { background: #f9fafb; }
+      tbody tr:nth-child(even) { background: #fafafa; }
+      .muted { color: #6b7280; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>PayPal Account Activity</h1>
+      {% if not has_creds %}
+        <p class="error">Missing PayPal API credentials. Add them to a .env file as shown in README.</p>
+      {% else %}
+        <p class="note">Enter a date range to search recent transactions. Times are interpreted as UTC.</p>
+      {% endif %}
+    </header>
+
+    <form action="/search" method="post">
+      <div>
+        <label for="start_date">Start date</label>
+        <input id="start_date" name="start_date" type="date" required>
+      </div>
+      <div>
+        <label for="end_date">End date</label>
+        <input id="end_date" name="end_date" type="date" required>
+      </div>
+      <div>
+        <label for="email">Payer email (optional)</label>
+        <input id="email" name="email" type="text" placeholder="payer@example.com">
+      </div>
+      <div>
+        <label for="transaction_id">Transaction ID (optional)</label>
+        <input id="transaction_id" name="transaction_id" type="text" placeholder="XXXXXXXXXXXX">
+      </div>
+      <div>
+        <button type="submit" {% if not has_creds %}disabled{% endif %}>Search</button>
+      </div>
+    </form>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if transactions and transactions|length > 0 %}
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Type</th>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Transaction ID</th>
+            <th>Status</th>
+            <th>Amount</th>
+            <th>Currency</th>
+            <th>Fee</th>
+            <th>Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in transactions %}
+            <tr>
+              <td class="muted">{{ tx.timestamp }}</td>
+              <td>{{ tx.type }}</td>
+              <td>{{ tx.email }}</td>
+              <td>{{ tx.name }}</td>
+              <td>{{ tx.transaction_id }}</td>
+              <td>{{ tx.status }}</td>
+              <td>{{ tx.amount }}</td>
+              <td>{{ tx.currency }}</td>
+              <td class="muted">{{ tx.fee }}</td>
+              <td class="muted">{{ tx.net }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% elif has_creds %}
+      <p class="muted">No results yet. Submit the form to search.</p>
+    {% endif %}
+
+    <hr style="margin: 2rem 0;">
+
+    <section>
+      <h2>NVP API Explorer</h2>
+      <p class="note">Run any NVP method. Fields are sent as NVP pairs. Leave overrides empty to use server credentials.</p>
+
+      <form id="nvp-form">
+        <div style="display:grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 0.75rem; align-items: end;">
+          <div>
+            <label for="nvp-method">METHOD</label>
+            <input id="nvp-method" type="text" placeholder="TransactionSearch" required>
+          </div>
+          <div>
+            <label for="nvp-override-mode">Override Mode (optional)</label>
+            <input id="nvp-override-mode" type="text" placeholder="sandbox or live">
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button type="button" id="add-param">Add param</button>
+          </div>
+        </div>
+
+        <details style="margin: 0.75rem 0;">
+          <summary>Credential overrides (optional)</summary>
+          <div style="display:grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 0.75rem;">
+            <div>
+              <label for="nvp-user">USER</label>
+              <input id="nvp-user" type="text" placeholder="override USER">
+            </div>
+            <div>
+              <label for="nvp-pwd">PWD</label>
+              <input id="nvp-pwd" type="text" placeholder="override PWD">
+            </div>
+            <div>
+              <label for="nvp-signature">SIGNATURE</label>
+              <input id="nvp-signature" type="text" placeholder="override SIGNATURE">
+            </div>
+          </div>
+        </details>
+
+        <div id="params" style="margin: 0.75rem 0; display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)) 80px; gap: 0.5rem;">
+        </div>
+
+        <div>
+          <button type="submit">Execute</button>
+        </div>
+      </form>
+
+      <pre id="nvp-output" style="background:#0b1021; color:#d1d5db; padding:1rem; border-radius:8px; overflow:auto; max-height:320px; margin-top:1rem;"></pre>
+    </section>
+
+    <script>
+      (function(){
+        const paramsDiv = document.getElementById('params');
+        const addBtn = document.getElementById('add-param');
+        const output = document.getElementById('nvp-output');
+        const form = document.getElementById('nvp-form');
+
+        function addRow(key = '', value = ''){
+          const row = document.createElement('div');
+          row.style.display = 'contents';
+
+          const keyInput = document.createElement('input');
+          keyInput.placeholder = 'NVP KEY (e.g., STARTDATE)';
+          keyInput.value = key;
+          const valInput = document.createElement('input');
+          valInput.placeholder = 'Value (e.g., 2025-01-01T00:00:00Z)';
+          valInput.value = value;
+          const removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.textContent = 'Remove';
+          removeBtn.onclick = () => {
+            paramsDiv.removeChild(row);
+          };
+
+          row.appendChild(keyInput);
+          row.appendChild(valInput);
+          row.appendChild(removeBtn);
+          paramsDiv.appendChild(row);
+        }
+
+        addBtn?.addEventListener('click', () => addRow());
+
+        form?.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          output.textContent = 'Running...';
+          const fd = new FormData();
+          fd.append('method', document.getElementById('nvp-method').value.trim());
+
+          const mode = document.getElementById('nvp-override-mode').value.trim();
+          if (mode) fd.append('override_mode', mode);
+
+          const u = document.getElementById('nvp-user').value.trim();
+          const p = document.getElementById('nvp-pwd').value.trim();
+          const s = document.getElementById('nvp-signature').value.trim();
+          if (u && p && s){
+            fd.append('override_user', u);
+            fd.append('override_pwd', p);
+            fd.append('override_signature', s);
+          }
+
+          // Collect params rows
+          const children = Array.from(paramsDiv.children);
+          for (const row of children){
+            const [k, v] = row.querySelectorAll('input');
+            const key = (k?.value || '').trim();
+            if (!key) continue;
+            fd.append('param_' + key, (v?.value || '').trim());
+          }
+
+          try{
+            const res = await fetch('/api/nvp/execute', { method: 'POST', body: fd });
+            const json = await res.json();
+            output.textContent = JSON.stringify(json, null, 2);
+          }catch(err){
+            output.textContent = 'Error: ' + err;
+          }
+        });
+
+        // Prefill a helpful TransactionSearch example
+        addRow('STARTDATE', new Date(Date.now() - 7*24*3600*1000).toISOString().replace(/\.\d{3}Z$/, 'Z'));
+        addRow('ENDDATE', new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'));
+      })();
+    </script>
+  </body>
+</html>
