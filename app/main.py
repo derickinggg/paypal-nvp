@@ -172,3 +172,45 @@ async def api_activity(
             "transactions": transactions,
         }
     )
+
+
+@app.post("/api/nvp/execute")
+async def nvp_execute(
+    method: str = Form(...),
+    # Accept arbitrary fields as params via Form by prefixing with 'param_'
+    request: Request = None,
+    override_user: Optional[str] = Form(None),
+    override_pwd: Optional[str] = Form(None),
+    override_signature: Optional[str] = Form(None),
+    override_mode: Optional[str] = Form(None),
+    override_version: Optional[str] = Form(None),
+) -> JSONResponse:
+    form = await request.form()
+    params: Dict[str, Any] = {}
+    for key, value in form.items():
+        if isinstance(value, list):
+            continue
+        if key.startswith("param_"):
+            # param_STARTDATE => STARTDATE
+            nvp_key = key[len("param_") :]
+            params[nvp_key] = value
+
+    client = None
+    if override_user and override_pwd and override_signature:
+        client = PayPalNVPClient(
+            user=override_user,
+            password=override_pwd,
+            signature=override_signature,
+            mode=override_mode or settings.paypal_mode,
+            version=override_version or settings.paypal_version,
+        )
+    else:
+        client = _get_client_or_error()
+        if client is None:
+            return JSONResponse(status_code=400, content={"error": "Missing credentials"})
+
+    try:
+        result = await client.call(method, params)
+        return JSONResponse(content={"ack": result.get("ACK"), "result": result})
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse(status_code=500, content={"error": str(exc)})

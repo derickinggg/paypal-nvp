@@ -48,6 +48,9 @@ class PayPalNVPClient:
         )
         return {k: v for k, v in parsed_pairs}
 
+    async def call(self, method: str, params: Dict[str, Any]) -> Dict[str, str]:
+        return await self._send_request(method, params)
+
     async def transaction_search(
         self,
         start_date_iso_z: str,
