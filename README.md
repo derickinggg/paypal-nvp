@@ -39,3 +39,29 @@ Then open `http://localhost:8000` in your browser.
 ## Notes
 - This app does not log your credentials.
 - For production, serve behind a reverse proxy and disable `--reload`. 
+
+## Deploy to Vercel
+
+1. Install Vercel CLI (optional):
+```bash
+npm i -g vercel
+```
+
+2. Create project on Vercel and set Environment Variables in the dashboard:
+- `PAYPAL_USER`
+- `PAYPAL_PWD`
+- `PAYPAL_SIGNATURE`
+- `PAYPAL_MODE` (sandbox or live)
+- `PAYPAL_API_VERSION` (default 204)
+
+3. Deploy:
+```bash
+vercel
+# or to a production deploy
+vercel --prod
+```
+
+Notes:
+- Vercel uses `vercel.json` to route all paths to `api/index.py` (a Python Serverless Function) which serves the FastAPI app.
+- `app/**` is bundled so templates and static files resolve.
+- Use the Vercel dashboard to manage env vars; do not commit `.env`. 
